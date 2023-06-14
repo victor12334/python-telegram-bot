@@ -1,0 +1,73 @@
+import telegram
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+# создаем бота и токен
+bot = telegram.Bot(token='YOUR_TOKEN_HERE')
+updater = Updater(token='YOUR_TOKEN_HERE', use_context=True)
+# обработчики команд
+def start(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Привет! Я помогу тебе сохранять заметки.")
+def help(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Это список доступных команд:\n /add - добавить заметку\n /edit - редактировать заметку\n /view - просмотреть заметку\n /delete - удалить заметку")
+# обработчики сообщений
+def add(update, context):
+    # получаем текст заметки от пользователя
+    note_text = update.message.text.replace('/add ', '')
+    # сохраняем заметку в базу данных
+    save_note_to_database(user_id=update.effective_user.id, note_text=note_text)
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Заметка успешно сохранена.")
+def edit(update, context):
+    # получаем id заметки от пользователя
+    note_id = update.message.text.replace('/edit ', '')
+    # получаем новый текст заметки от пользователя
+    new_note_text = update.message.text.replace('/edit {} '.format(note_id), '')
+    # редактируем заметку в базе данных
+    edit_note_in_database(note_id=note_id, new_note_text=new_note_text)
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Заметка успешно отредактирована.")
+def view(update, context):
+    # получаем id заметки от пользователя
+    note_id = update.message.text.replace('/view ', '')
+    # получаем заметку из базы данных
+    note_text = get_note_from_database(note_id=note_id)
+    context.bot.send_message(chat_id=update.effective_chat.id, text=note_text)
+def delete(update, context):
+    # получаем id заметки от пользователя
+    note_id = update.message.text.replace('/delete ', '')
+    # удаляем заметку из базы данных
+    delete_note_from_database(note_id=note_id)
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Заметка успешно удалена.")
+# добавляем обработчики команд и сообщений
+updater.dispatcher.add_handler(CommandHandler('start', start))
+updater.dispatcher.add_handler(CommandHandler('help', help))
+updater.dispatcher.add_handler(CommandHandler('add', add))
+updater.dispatcher.add_handler(CommandHandler('edit', edit))
+updater.dispatcher.add_handler(CommandHandler('view', view))
+updater.dispatcher.add_handler(CommandHandler('delete', delete))
+import datetime
+# обработчик команды добавления заметки с выбором времени выполнения
+def add_with_time(update, context):
+    # получаем текст заметки от пользователя
+    note_text = update.message.text.replace('/add_with_time ', '')
+    # получаем время выполнения заметки от пользователя
+    time_str = context.args[0]
+    # преобразуем строку времени в объект datetime
+    time = datetime.datetime.strptime(time_str, '%d-%m-%Y %H:%M')
+    # сохраняем заметку и время выполнения в базу данных
+    save_note_to_database(user_id=update.effective_user.id, note_text=note_text, time=time)
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Заметка успешно добавлена с временем выполнения: {}".format(time_str))
+# добавляем обработчик команды добавления заметки с выбором времени выполнения
+updater.dispatcher.add_handler(CommandHandler('add_with_time', add_with_time))
+```
+Теперь мы можем сохранять заметки с выбранным временем выполнения и просматривать их с учетом времени. Для этого необходимо добавить функцию, которая будет проверять время выполнения заметок и отправлять уведомления пользователю.
+```python
+# функция для проверки времени выполнения заметок
+def check_notes_time(context: telegram.ext.CallbackContext):
+    # получаем все заметки из базы данных
+    notes = get_all_notes_from_database()
+    for note in notes:
+        # если время выполнения заметки меньше текущего времени, отправляем уведомление пользователю
+        if note['time'] < datetime.datetime.now():
+            context.bot.send_message(chat_id=note['user_id'], text="{}: {}".format(note['time'], note['note_text']))
+            # удаляем заметку из базы данных
+            delete_note_from_database(note_id=note['id'])
+# регулярно вызываем функцию проверки времени выполнения заметок
+updater.job_queue.run_repeating(check_notes_time, interval=60, first=0)
